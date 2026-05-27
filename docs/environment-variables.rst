@@ -215,3 +215,108 @@ UI_JWT_SECRET
   string can be up to 64 characters in length.
 
   Default: unset
+
+TR-369 (USP) bus
+----------------
+
+The following variables configure the NATS JetStream bus that connects the
+USP controller and MTP services. See :doc:`usp/configuration` for the full
+USP configuration surface.
+
+GENIEACS_NATS_URL
+  Connection URL of the NATS server. Comma-separated list for a cluster.
+
+  Default: ``nats://127.0.0.1:4222``
+
+GENIEACS_NATS_USER
+  Username for NATS authentication. Leave unset if the server allows
+  anonymous connections.
+
+  Default: unset
+
+GENIEACS_NATS_PASSWORD
+  Password for NATS authentication.
+
+  Default: unset
+
+GENIEACS_NATS_STREAM_NAME
+  Name of the JetStream stream used for the ``from-mtp.>`` and ``to-mtp.>``
+  subjects. The controller creates the stream on first start if it does
+  not exist.
+
+  Default: ``GENIEACS_USP``
+
+TR-369 (USP) MQTT MTP
+---------------------
+
+The following variables configure ``genieacs-usp-mqtt``, the MQTT v5 client
+that bridges an external broker to the USP controller. See
+:doc:`usp/mtp/mqtt` for the full discussion.
+
+GENIEACS_USP_MQTT_URL
+  Connection URL of the MQTT broker. Use ``mqtt://`` for plain TCP or
+  ``mqtts://`` for TLS.
+
+  Default: ``mqtt://127.0.0.1:1883``
+
+GENIEACS_USP_MQTT_CLIENT_ID
+  MQTT client identifier. A per-worker suffix is appended automatically
+  when running with multiple workers.
+
+  Default: ``genieacs-usp-mqtt``
+
+GENIEACS_USP_MQTT_USERNAME
+  Username for broker authentication.
+
+  Default: unset
+
+GENIEACS_USP_MQTT_PASSWORD
+  Password for broker authentication.
+
+  Default: unset
+
+GENIEACS_USP_MQTT_TOPIC_PREFIX
+  Common prefix for the controller topic (``<prefix>/controller``) and
+  the per-agent topics (``<prefix>/agent/<endpointId>``).
+
+  Default: ``genieacs/usp/v1``
+
+GENIEACS_USP_MQTT_KEEPALIVE
+  MQTT keepalive interval, in seconds.
+
+  Default: ``60``
+
+GENIEACS_USP_MQTT_RECONNECT_PERIOD
+  Delay between reconnect attempts when the broker connection drops,
+  in milliseconds.
+
+  Default: ``5000``
+
+GENIEACS_USP_MQTT_WORKER_PROCESSES
+  Number of worker processes to fork in ``genieacs-usp-mqtt``. ``0`` means
+  one per CPU core.
+
+  Default: ``0``
+
+GENIEACS_USP_MQTT_TLS_CA
+  Path to a PEM-encoded CA certificate (or bundle) used to verify the
+  broker's certificate.
+
+  Default: unset
+
+GENIEACS_USP_MQTT_TLS_CERT
+  Path to a PEM-encoded client certificate for mutual TLS.
+
+  Default: unset
+
+GENIEACS_USP_MQTT_TLS_KEY
+  Path to the PEM-encoded private key matching ``GENIEACS_USP_MQTT_TLS_CERT``.
+
+  Default: unset
+
+GENIEACS_USP_MQTT_TLS_REJECT_UNAUTHORIZED
+  Reject the broker's certificate when it cannot be verified against the
+  trust store. Set to ``false`` only for development against self-signed
+  brokers.
+
+  Default: ``true``

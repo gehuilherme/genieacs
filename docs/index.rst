@@ -31,6 +31,7 @@ Welcome to GenieACS's documentation!
   provisions
   virtual-parameters
   administration-faq
+  usp/index
 
 .. raw:: latex
 

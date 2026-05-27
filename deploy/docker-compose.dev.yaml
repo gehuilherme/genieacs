@@ -1,0 +1,212 @@
+# ---------------------------------------------------------------------------
+# GenieACS development stack (CWMP + USP).
+#
+# Profile semantics (Docker Compose):
+#   * Default (no profile): brings up the full stack — Mongo, Redis, NATS,
+#     Mosquitto, ActiveMQ, all 4 USP binaries, plus the shared
+#     genieacs-nbi/genieacs-ui. CWMP listeners (genieacs-cwmp, genieacs-fs)
+#     are gated behind --profile cwmp-only so users who only want USP can
+#     skip them without editing the file.
+#   * --profile cwmp-only: additionally starts genieacs-cwmp and genieacs-fs.
+#   * --profile e2e (overlay docker-compose.e2e.yaml): adds obuspa-mqtt,
+#     obuspa-ws, obuspa-stomp BBF reference agents.
+#
+# Common selections:
+#   docker compose -f deploy/docker-compose.dev.yaml up
+#                  # default: full USP stack
+#   docker compose -f deploy/docker-compose.dev.yaml --profile cwmp-only up
+#                  # USP + CWMP both
+#   docker compose -f deploy/docker-compose.dev.yaml \
+#                  -f deploy/docker-compose.e2e.yaml --profile e2e up
+#                  # USP stack + obuspa agents (no CWMP)
+# ---------------------------------------------------------------------------
+
+name: genieacs-dev
+
+# ----------------------------- shared anchors ------------------------------
+x-genieacs-env: &genieacs-env
+  GENIEACS_MONGODB_CONNECTION_URL: mongodb://mongo/genieacs
+  GENIEACS_NATS_URL: nats://nats:4222
+  GENIEACS_USP_MQTT_URL: mqtt://mosquitto:1883
+  GENIEACS_USP_MQTT_USERNAME: admin
+  GENIEACS_USP_MQTT_PASSWORD: admin123
+  GENIEACS_USP_MQTT_TOPIC_PREFIX: genieacs/usp/v1
+  GENIEACS_USP_WS_PORT: "8080"
+  GENIEACS_USP_WS_PATH: /usp
+  GENIEACS_USP_WS_SUBPROTOCOL: v1.usp
+  GENIEACS_USP_STOMP_URL: stomp://activemq:61613
+
+services:
+  # ------------------------------ infra ------------------------------------
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "no"]
+
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+      - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+
+  mosquitto:
+    image: genieacs-mosquitto:dev
+    build:
+      context: ./mosquitto
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+
+  activemq:
+    image: rmohr/activemq:5.15.9-alpine
+    restart: unless-stopped
+    ports:
+      - "61613:61613"
+      - "8161:8161"
+    volumes:
+      - activemq_data:/opt/activemq/data
+
+  # ----------------------------- GenieACS ----------------------------------
+  genieacs-cwmp:
+    image: genieacs:dev
+    restart: unless-stopped
+    profiles: ["cwmp-only"]
+    command: ["genieacs-cwmp"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      <<: *genieacs-env
+      GENIEACS_CWMP_INTERFACE: "0.0.0.0"
+    ports:
+      - "7547:7547"
+
+  genieacs-fs:
+    image: genieacs:dev
+    restart: unless-stopped
+    profiles: ["cwmp-only"]
+    command: ["genieacs-fs"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      <<: *genieacs-env
+      GENIEACS_FS_INTERFACE: "0.0.0.0"
+    ports:
+      - "7567:7567"
+
+  genieacs-nbi:
+    image: genieacs:dev
+    # This service carries the build directive so `docker compose build`
+    # (and the implicit build on first `up`) constructs the shared image.
+    # genieacs-nbi is always-on so it triggers the build regardless of profile.
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    command: ["genieacs-nbi"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      <<: *genieacs-env
+      GENIEACS_NBI_INTERFACE: "0.0.0.0"
+    ports:
+      - "7557:7557"
+
+  genieacs-ui:
+    image: genieacs:dev
+    restart: unless-stopped
+    command: ["genieacs-ui"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      <<: *genieacs-env
+      GENIEACS_UI_INTERFACE: "0.0.0.0"
+      GENIEACS_UI_JWT_SECRET: dev-only-change-me
+    ports:
+      - "3000:3000"
+
+  genieacs-usp-controller:
+    image: genieacs:dev
+    restart: unless-stopped
+    command: ["genieacs-usp-controller"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      <<: *genieacs-env
+
+  genieacs-usp-mqtt:
+    image: genieacs:dev
+    restart: unless-stopped
+    command: ["genieacs-usp-mqtt"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      mosquitto:
+        condition: service_started
+    environment:
+      <<: *genieacs-env
+
+  genieacs-usp-ws:
+    image: genieacs:dev
+    restart: unless-stopped
+    command: ["genieacs-usp-ws"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    environment:
+      <<: *genieacs-env
+      GENIEACS_USP_WS_INTERFACE: "0.0.0.0"
+    ports:
+      - "8080:8080"
+
+  genieacs-usp-stomp:
+    image: genieacs:dev
+    restart: unless-stopped
+    command: ["genieacs-usp-stomp"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      activemq:
+        condition: service_started
+    environment:
+      <<: *genieacs-env
+      GENIEACS_USP_STOMP_URL: stomp://activemq:61613
+
+volumes:
+  mongo_data:
+  nats_data:
+  activemq_data:

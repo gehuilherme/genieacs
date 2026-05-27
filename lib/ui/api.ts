@@ -689,6 +689,65 @@ router.post("/devices/:id/tasks", async (ctx) => {
 
   const lastInform = device["Events.Inform"] as number;
 
+  // USP devices: the agent is always connected to its MTP broker, so there is
+  // no CWMP connection-request to perform. The genieacs-usp-controller poller
+  // dispatches the inserted tasks within ~1s. We don't synchronously wait for
+  // completion here — tasks stay in the collection with status "pending" and
+  // the UI polls /tasks/<id> on a timer to show progress.
+  if (device["_protocol"] === "usp") {
+    ctx.set("Connection-Request", "OK");
+
+    // Wait for the genieacs-usp-controller poller to process each task
+    // (it deletes the task on success or writes a Fault on failure). Mirrors
+    // the synchronous semantics of CWMP's connectionRequest + awaitSessionEnd
+    // so the UI's post-commit `invalidate()` re-fetches the device with the
+    // new data already persisted.
+    const taskIds = statuses.map((s) => new ObjectId(s._id));
+    const deadline = Date.now() + 30000; // hard cap regardless of socketTimeout
+    const pollInterval = 150;
+
+    const remaining = new Set(taskIds.map((id) => id.toHexString()));
+    while (remaining.size > 0 && Date.now() < deadline) {
+      const stillThere = await collections.tasks
+        .find(
+          { _id: { $in: [...remaining].map((h) => new ObjectId(h)) } },
+          { projection: { _id: 1 } },
+        )
+        .toArray();
+      const live = new Set(stillThere.map((t) => t._id.toHexString()));
+      for (const hex of [...remaining]) if (!live.has(hex)) remaining.delete(hex);
+      if (remaining.size === 0) break;
+      await new Promise((r) => setTimeout(r, pollInterval));
+    }
+
+    // Mark statuses based on whether a fault was written for each task
+    const faultDocs = await collections.faults
+      .find(
+        {
+          _id: {
+            $in: taskIds.map((id) => `${deviceId}:task_${id.toHexString()}`),
+          },
+        },
+        { projection: { _id: 1 } },
+      )
+      .toArray();
+    const faulted = new Set(
+      faultDocs.map((f) =>
+        (f._id as string).slice(`${deviceId}:task_`.length),
+      ),
+    );
+    for (const s of statuses) {
+      const hex = new ObjectId(s._id).toHexString();
+      if (faulted.has(hex)) s.status = "fault";
+      else if (remaining.has(hex)) s.status = "stale"; // controller didn't finish in time
+      else s.status = "done";
+    }
+
+    if (socketTimeout) ctx.socket.setTimeout(socketTimeout);
+    ctx.body = statuses;
+    return;
+  }
+
   let status = await apiFunctions.connectionRequest(deviceId, device);
   if (!status) {
     const sessionStarted = await apiFunctions.awaitSessionStart(

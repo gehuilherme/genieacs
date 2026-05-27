@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.gitignore
+.github
+.vscode
+.idea
+.claude
+docs/_build
+test/*.js
+*.log
+npm-debug.log*
+.DS_Store

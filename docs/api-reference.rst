@@ -451,6 +451,99 @@ parameterValues key. For example:
   -X POST \
   --data '{"name": "download", "file": "mipsbe-6-42-lite.xml"}'
 
+USP-specific tasks
+~~~~~~~~~~~~~~~~~~
+
+``POST /devices/<id>/tasks`` accepts the same shape for USP devices as
+for CWMP. Tasks that are common to both protocols
+(``getParameterValues``, ``setParameterValues``, ``addObject``,
+``deleteObject``, ``refreshObject``, ``reboot``, ``factoryReset``,
+``download``) are translated automatically — see
+:doc:`usp/rpc-mapping` for the per-task USP Message produced.
+
+The following task names are USP-only. Submitting them against a CWMP
+device returns ``400 Bad Request``.
+
+``operate``
+^^^^^^^^^^^
+
+Invoke an arbitrary USP ``Operate`` command. ``command`` is the
+fully-qualified command path; ``inputArgs`` is forwarded verbatim as
+the ``input_args`` map. Use this for vendor-specific operations that
+are not modelled by a first-class task (e.g.
+``Device.IP.Diagnostics.IPPing()``).
+
+.. code:: bash
+
+  curl -i 'http://localhost:7557/devices/os--ARRIS-12AB34-SN9876/tasks' \
+  -X POST \
+  --data '{
+            "name": "operate",
+            "command": "Device.Reboot()",
+            "inputArgs": {}
+          }'
+
+``addSubscription``
+^^^^^^^^^^^^^^^^^^^
+
+Install a USP Subscription
+(``Device.LocalAgent.Subscription.{i}.``) on the Agent. Fields:
+
+- ``notificationType`` — ``Boot``, ``ValueChange``, ``ObjectCreation``,
+  ``ObjectDeletion``, ``OperationComplete``, ``Event``,
+  ``OnBoardRequest`` or ``Periodic``.
+- ``referenceList`` — array of TR-181/USP paths.
+- ``persistent`` — boolean; when ``true`` the Subscription survives the
+  Agent's reboots.
+
+.. code:: bash
+
+  curl -i 'http://localhost:7557/devices/os--ARRIS-12AB34-SN9876/tasks' \
+  -X POST \
+  --data '{
+            "name": "addSubscription",
+            "notificationType": "ValueChange",
+            "referenceList": ["Device.WiFi.SSID.1.SSID"],
+            "persistent": true
+          }'
+
+See :doc:`usp/subscriptions` for the lifecycle and the auto-installed
+defaults.
+
+``removeSubscription``
+^^^^^^^^^^^^^^^^^^^^^^
+
+Delete a previously installed Subscription. ``subscriptionId`` is
+either the Agent-side numeric instance id or a ``logicalName`` recorded
+at creation time (resolved via ``_usp.subscriptionIds``).
+
+.. code:: bash
+
+  curl -i 'http://localhost:7557/devices/os--ARRIS-12AB34-SN9876/tasks' \
+  -X POST \
+  --data '{
+            "name": "removeSubscription",
+            "subscriptionId": "42"
+          }'
+
+Optional ``protocol`` field
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Every task supports an optional ``protocol`` field on its ``TaskBase``:
+
+.. code:: javascript
+
+  {
+    "name": "getParameterValues",
+    "parameterNames": ["Device.DeviceInfo.SoftwareVersion"],
+    "protocol": "usp"
+  }
+
+Accepted values are ``"cwmp"`` and ``"usp"``. When omitted, the
+controller picks the protocol per the device's ``_protocol`` field
+(devices with ``_protocol: "both"`` default to USP when reachable, CWMP
+otherwise).
+
 .. _presets:
 
 Presets

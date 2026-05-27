@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { FaultStruct } from "../types.ts";
 import { Value } from "../common/expression.ts";
+import type { UspDeviceSubdoc } from "../usp/types.ts";
 
 export interface Fault {
   _id: string;
@@ -27,6 +28,7 @@ interface TaskBase {
   expiry?: Date;
   name: string;
   device: string;
+  protocol?: "cwmp" | "usp";
 }
 
 export interface View {
@@ -80,6 +82,24 @@ interface TaskProvisions extends TaskBase {
   provisions?: [string, ...Value[]][];
 }
 
+interface TaskOperate extends TaskBase {
+  name: "operate";
+  command: string;
+  inputArgs?: Record<string, string>;
+}
+
+interface TaskAddSubscription extends TaskBase {
+  name: "addSubscription";
+  notificationType: string;
+  referenceList: string[];
+  persistent?: boolean;
+}
+
+interface TaskRemoveSubscription extends TaskBase {
+  name: "removeSubscription";
+  subscriptionId: string;
+}
+
 export type Task =
   | TaskGetParameterValues
   | TaskSetParameterValues
@@ -89,7 +109,10 @@ export type Task =
   | TaskDownload
   | TaskAddObject
   | TaskDeleteObject
-  | TaskProvisions;
+  | TaskProvisions
+  | TaskOperate
+  | TaskAddSubscription
+  | TaskRemoveSubscription;
 
 export interface Operation {
   _id: string;
@@ -119,6 +142,8 @@ export interface Device {
   _registered: Date;
   _tags?: string[];
   _timestamp?: Date;
+  _protocol?: "cwmp" | "usp" | "both";
+  _usp?: UspDeviceSubdoc;
 }
 
 type Configuration =

@@ -30,12 +30,52 @@ invariants.
 - `lib/common/` — Shared code (runs in both Node.js and browser)
 - `lib/db/` — MongoDB database layer
 - `lib/ui/` — UI backend helpers
+- `lib/usp/` — TR-369 (USP) controller logic (see below)
+- `lib/mtp/` — USP Message Transfer Protocol bridges (see below)
 - `ui/` — Frontend SPA (Mithril.js)
-- `bin/` — Service entry points (5 executables)
+- `bin/` — Service entry points (CWMP + NBI + FS + UI + 4 USP services)
 - `build/` — Build scripts (esbuild pipeline)
 - `test/` — Unit tests (node:test)
 - `docs/` — User docs (Sphinx/reStructuredText)
 - `public/` — Static assets (favicon, logo)
+
+### USP (`lib/usp/`, `lib/mtp/`)
+
+`lib/usp/` holds the protocol-agnostic USP controller logic. It is invoked by
+`bin/genieacs-usp-controller.ts` and consumes USP Records from NATS regardless
+of which MTP they arrived on. Key files:
+
+- `parser.ts` — protobuf encode/decode for USP Records and Messages.
+- `dispatcher.ts` — classifies inbound Messages (Notify / Response / Error)
+  and routes them to the right handler.
+- `rpc.ts` — `taskToMsg` translates NBI tasks (`getParameterValues`,
+  `setParameterValues`, `operate`, `addSubscription`, etc.) into outbound USP
+  Messages. The inverse direction lives in `notify.ts` and the response
+  branches of `dispatcher.ts`.
+- `notify.ts` — handles `Notify` Messages; on the first `Boot` from an
+  Endpoint it calls `subscriptions.ts` to install defaults.
+- `subscriptions.ts` — auto-installs `Device.LocalAgent.Subscription.*` for
+  `Boot` and `ValueChange` on first contact; also resolves `logicalName`
+  bookkeeping in `_usp.subscriptionIds`.
+- `poller.ts` — watches the `tasks` collection for USP-bound work and feeds it
+  through `rpc.ts`.
+- `subjects.ts` — the canonical NATS subject builders
+  (`genieacs.usp.v1.from-mtp.<mtp>.<endpointId>`, etc.).
+- `nats.ts` — shared NATS JetStream client used by every USP service.
+
+`lib/mtp/` holds the wire-protocol bridges. Each file is a thin adapter that
+bridges its MTP to the NATS subjects above and decodes the BBF-defined
+Endpoint-ID transport for that MTP (MQTT v5 user property, WebSocket
+subprotocol, STOMP header). Files: `mqtt.ts`, `ws.ts`, `stomp.ts`.
+
+**Reuse rule.** USP code reuses session/sandbox/declarations from CWMP — do
+not duplicate. The session engine in `lib/session.ts`, the sandbox in
+`lib/sandbox.ts`, the path system in `lib/common/`, presets, provisions,
+virtual parameters and the entire `lib/db/` layer are protocol-agnostic and
+must not be re-implemented in `lib/usp/`. If you find yourself writing
+something that looks like a parallel declaration engine or a parallel device
+loader, stop and reuse the existing one. See `docs/usp/architecture.rst` for
+the architectural rationale.
 
 ## Build / Lint / Test Commands
 

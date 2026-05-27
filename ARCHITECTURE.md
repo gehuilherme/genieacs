@@ -385,6 +385,46 @@ content-hashed names so both backend and frontend reference the correct assets.
 Build metadata includes the date and a hash derived from the git state, appended
 to the package version.
 
+## USP / TR-369 stack
+
+In addition to the four CWMP-era services, v1.3 ships a parallel TR-369 (USP)
+controller. It is a small set of cooperating microservices that share MongoDB
+and Redis with the rest of GenieACS but introduce **NATS JetStream** as a new
+internal message bus.
+
+```
+Agent ── (MQTT/WS/STOMP) ── MTP service ── NATS ── usp-controller ── MongoDB
+CPE   ── (HTTP/SOAP)     ── genieacs-cwmp           ──            ── MongoDB
+```
+
+- **`genieacs-usp-controller`** — protocol-agnostic brain. Subscribes to
+  `genieacs.usp.v1.from-mtp.>` on NATS, decodes USP Records and Messages,
+  reconciles the Endpoint ID to a device document, and drives the shared
+  session engine. Polls the `tasks` collection for devices whose `_protocol`
+  is `usp` or `both` and translates queued tasks into outbound USP Messages.
+- **`genieacs-usp-mqtt`** — MQTT v5 client bridge. Connects to an external
+  broker (bring-your-own) and bridges traffic to/from NATS.
+- **`genieacs-usp-ws`** — WebSocket server that listens on `USP_WS_PORT`,
+  negotiates the `v1.usp` subprotocol on upgrade, and bridges each socket to
+  NATS. Worker affinity is tracked over NATS so any worker can route outbound
+  messages to the worker that holds the socket.
+- **`genieacs-usp-stomp`** — STOMP 1.2 client bridge to an external STOMP
+  broker (ActiveMQ, RabbitMQ STOMP plugin, etc.).
+
+USP devices live in the **same `devices` collection** as CWMP devices, keyed by
+`_protocol: "cwmp" | "usp" | "both"` and a `_usp` subdocument carrying the
+Endpoint ID, MTP affinity, and Subscription bookkeeping. The single most
+important architectural fact about the USP stack is that **almost nothing
+needed to be rewritten**: `lib/sandbox.ts`, `lib/session.ts`, `lib/db/` and
+`lib/common/` are protocol-agnostic and are reused as-is. Provisions, presets,
+virtual parameters and the NBI all work against USP devices without changes.
+
+The USP-specific code (`lib/usp/`, `lib/mtp/`) covers only what is genuinely
+new: wire-format decoding (protobuf), endpoint reconciliation, MTP transport
+bridges, a `taskToMsg` shim that maps NBI tasks to USP Message types, and the
+Subscription lifecycle. See `docs/usp/architecture.rst` for the full message
+flow and NATS subject catalogue.
+
 ## Cross-Cutting Concerns
 
 ### Multi-Level Caching

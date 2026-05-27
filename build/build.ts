@@ -164,19 +164,27 @@ function generateSymbol(id: string, svgStr: string): string {
 async function getBuildMetadata(): Promise<string> {
   const date = new Date().toISOString().slice(2, 10).replaceAll("-", "");
 
-  const [commit, diff, newFiles] = await Promise.all([
-    execAsync("git rev-parse HEAD"),
-    execAsync("git diff HEAD"),
-    execAsync("git ls-files --others --exclude-standard"),
-  ]).then((res) => res.map((r) => r.stdout.trim()));
+  // Git state is best-effort — Docker builds typically run without .git in the
+  // context, so fall back to date + a stable placeholder hash in that case.
+  try {
+    const [commit, diff, newFiles] = await Promise.all([
+      execAsync("git rev-parse HEAD", { maxBuffer: 128 * 1024 * 1024 }),
+      execAsync("git diff HEAD", { maxBuffer: 128 * 1024 * 1024 }),
+      execAsync("git ls-files --others --exclude-standard", {
+        maxBuffer: 128 * 1024 * 1024,
+      }),
+    ]).then((res) => res.map((r) => r.stdout.trim()));
 
-  if (!diff && !newFiles) return date + commit.slice(0, 4);
+    if (!diff && !newFiles) return date + commit.slice(0, 4);
 
-  const hash = createHash("md5");
-  hash.update(commit).update(diff).update(newFiles);
-  for (const file of newFiles.split("\n").filter((f) => f))
-    hash.update(await fsAsync.readFile(file));
-  return date + hash.digest("hex").slice(0, 4);
+    const hash = createHash("md5");
+    hash.update(commit).update(diff).update(newFiles);
+    for (const file of newFiles.split("\n").filter((f) => f))
+      hash.update(await fsAsync.readFile(file));
+    return date + hash.digest("hex").slice(0, 4);
+  } catch {
+    return date + "0000";
+  }
 }
 
 async function init(): Promise<void> {
@@ -253,7 +261,10 @@ async function generateCss(): Promise<void> {
     name: "tailwind",
     setup(build) {
       build.onLoad({ filter: /\/ui\/css\/app.css$/ }, async (args) => {
-        const res = await execAsync(`npx @tailwindcss/cli -i ${args.path}`);
+        const res = await execAsync(
+          `npx @tailwindcss/cli -i ${args.path}`,
+          { maxBuffer: 128 * 1024 * 1024 },
+        );
         return { loader: "css", contents: res.stdout };
       });
     },
@@ -294,6 +305,10 @@ async function generateBackendJs(): Promise<void> {
     "genieacs-nbi",
     "genieacs-fs",
     "genieacs-ui",
+    "genieacs-usp-controller",
+    "genieacs-usp-mqtt",
+    "genieacs-usp-ws",
+    "genieacs-usp-stomp",
   ];
 
   await esbuild.build({
@@ -311,6 +326,7 @@ async function generateBackendJs(): Promise<void> {
     banner: { js: "#!/usr/bin/env node" },
     entryPoints: services.map((s) => `bin/${s}.ts`),
     outdir: path.join(OUTPUT_DIR, "bin"),
+    loader: { ".proto": "text" },
     plugins: [packageDotJsonPlugin, assetsPlugin, seedPlugin],
   });
 

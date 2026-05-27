@@ -108,6 +108,14 @@ export function flattenDevice(device: Record<string, unknown>): FlatDevice {
             output[`Tags.${et}:type`] = "xsd:boolean";
             output[`Tags.${et}:writable`] = true;
           }
+        } else if (name === "_protocol") {
+          output["_protocol"] = tree as string;
+          output["_protocol:type"] = "xsd:string";
+        } else if (name === "_usp") {
+          // Preserve the USP subdoc verbatim so views/filters can read
+          // _usp.endpointId, _usp.preferredMtp, _usp.mqtt.connected, etc.
+          output["_usp"] = tree as unknown as string;
+          output["_usp:type"] = "xsd:string";
         }
       }
 

@@ -31,6 +31,7 @@ import {
   AcsResponse,
 } from "./types.ts";
 import Path from "./common/path.ts";
+import { parseBool, coerce } from "./common/xsd.ts";
 
 const SERVER_NAME = `GenieACS/${VERSION}`;
 
@@ -76,12 +77,6 @@ let warnings: Record<string, unknown>[];
 
 const memoizedParseAttrs = memoize(parseAttrs);
 
-function parseBool(v: string): boolean {
-  if (v === "true" || v === "1") return true;
-  if (v === "false" || v === "0") return false;
-  return null;
-}
-
 function event(xml: Element): string[] {
   return xml.children
     .filter((n) => n.localName === "EventStruct")
@@ -104,7 +99,7 @@ function parameterInfoList(xml: Element): [Path, boolean, boolean][] {
         }
       }
 
-      let parsed: boolean = parseBool(value);
+      let parsed: boolean | null = parseBool(value);
 
       if (parsed == null) {
         warnings.push({
@@ -166,39 +161,16 @@ function parameterValueList(
         valueType = "xsd:string";
       }
 
-      const value = decodeEntities(valueElement.text);
-      let parsed: string | number | boolean = value;
-      if (valueType === "xsd:boolean") {
-        parsed = parseBool(value);
-        if (parsed == null) {
-          warnings.push({
-            message: "Missing or invalid XML node",
-            element: "Value",
-            parameter: param,
-          });
-          parsed = value;
-        }
-      } else if (valueType === "xsd:int" || valueType === "xsd:unsignedInt") {
-        parsed = parseInt(value);
-        if (isNaN(parsed)) {
-          warnings.push({
-            message: "Missing or invalid XML node",
-            element: "Value",
-            parameter: param,
-          });
-          parsed = value;
-        }
-      } else if (valueType === "xsd:dateTime") {
-        parsed = Date.parse(value);
-        if (isNaN(parsed)) {
-          warnings.push({
-            message: "Missing or invalid XML node",
-            element: "Value",
-            parameter: param,
-          });
-          parsed = value;
-        }
+      const rawValue = decodeEntities(valueElement.text);
+      const coerced = coerce(rawValue, valueType);
+      if (!coerced.ok) {
+        warnings.push({
+          message: "Missing or invalid XML node",
+          element: "Value",
+          parameter: param,
+        });
       }
+      const parsed = coerced.value;
       try {
         return [Path.parse(param), parsed, valueType];
       } catch {

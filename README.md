@@ -10,6 +10,23 @@ tolerant configuration engine for automating complex provisioning scenarios at
 scale. It's battle-tested to handle hundreds of thousands and potentially
 millions of concurrent devices.
 
+## TR-369 (USP) support
+
+The v1.3 development branch ships a full TR-369 (User Services Platform)
+controller alongside the existing TR-069 (CWMP) ACS:
+
+- Native TR-369 controller running side by side with the CWMP server — CPEs may
+  speak either protocol, or both at once.
+- **MQTT v5**, **WebSocket** (`v1.usp` subprotocol) and **STOMP 1.2** MTPs,
+  each as an independent microservice.
+- Shared `devices` collection — dual-protocol devices live in a single document
+  with a `_protocol` discriminator, so presets, provisions, virtual parameters
+  and the NBI work unchanged.
+- Bundled `deploy/docker-compose.dev.yaml` with NATS JetStream, Mosquitto,
+  MongoDB and Redis for a one-command dev stack.
+- Documentation lives under [`docs/usp/`](docs/usp/index.rst); a built copy is
+  published at <https://docs.genieacs.com> alongside the CWMP docs.
+
 ## Quick Start
 
 Install [Node.js](http://nodejs.org/) and [MongoDB](http://www.mongodb.org/).

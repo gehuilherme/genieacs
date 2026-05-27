@@ -24,6 +24,11 @@ import ICON from "../seed/icon.jsx" with { type: "text" };
 import DATAMODEL_EXPLORER from "../seed/datamodel-explorer.jsx" with { type: "text" };
 import INSTANCE_TABLE from "../seed/instance-table.jsx" with { type: "text" };
 import TAGS from "../seed/tags.jsx" with { type: "text" };
+import USP_DEVICES from "../seed/usp-devices.jsx" with { type: "text" };
+import USP_DEVICE from "../seed/usp-device.jsx" with { type: "text" };
+import USP_OVERVIEW from "../seed/usp-overview.jsx" with { type: "text" };
+import USP_DISCOVERY from "../seed/usp-discovery.jsx" with { type: "text" };
+import USP_RPC from "../seed/usp-rpc.jsx" with { type: "text" };
 
 interface Status {
   users: boolean;
@@ -121,6 +126,11 @@ export async function seed(options: Record<string, boolean>): Promise<void> {
       { _id: "datamodel-explorer", script: DATAMODEL_EXPLORER },
       { _id: "instance-table", script: INSTANCE_TABLE },
       { _id: "tags", script: TAGS },
+      { _id: "usp-devices", script: USP_DEVICES },
+      { _id: "usp-device", script: USP_DEVICE },
+      { _id: "usp-overview", script: USP_OVERVIEW },
+      { _id: "usp-discovery", script: USP_DISCOVERY },
+      { _id: "usp-rpc", script: USP_RPC },
     ]);
   }
 

@@ -293,6 +293,11 @@ async function handler(
           await apiFunctions.insertTasks(task);
           response.writeHead(202, { "Content-Type": "application/json" });
           response.end(JSON.stringify(task));
+        } else if (dev._protocol === "usp") {
+          // USP agents are always connected to their MTP broker — there is
+          // no wake-up step. Return 200 to satisfy "ensure online" callers.
+          response.writeHead(200);
+          response.end();
         } else {
           const status = await apiFunctions.connectionRequest(
             deviceId,
@@ -345,6 +350,17 @@ async function handler(
         await apiFunctions.insertTasks(task);
       } finally {
         await releaseLock(`cwmp_session_${deviceId}`, token);
+      }
+
+      // USP devices don't have a CWMP connection-request URL — the agent is
+      // always connected via MQTT/WS/STOMP. Skip the wake-up dance and return
+      // 202; the genieacs-usp-controller poller picks the task up within a
+      // second and dispatches it over the agent's preferred MTP.
+      if (dev._protocol === "usp") {
+        if (socketTimeout) request.socket.setTimeout(socketTimeout);
+        response.writeHead(202, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(task));
+        return;
       }
 
       const lastInform = (dev["_lastInform"] as Date).getTime();

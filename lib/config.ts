@@ -85,6 +85,45 @@ const options = {
 
   XMPP_JID: { type: "string", default: "" },
   XMPP_PASSWORD: { type: "string", default: "" },
+
+  // TR-369 (USP) — internal bus
+  NATS_URL: { type: "string", default: "nats://127.0.0.1:4222" },
+  NATS_USER: { type: "string", default: "" },
+  NATS_PASSWORD: { type: "string", default: "" },
+  NATS_STREAM_NAME: { type: "string", default: "GENIEACS_USP" },
+
+  // TR-369 controller
+  USP_CONTROLLER_WORKER_PROCESSES: { type: "int", default: 0 },
+  USP_RPC_TIMEOUT: { type: "int", default: 30000 },
+  USP_DEFAULT_MTP: { type: "string", default: "mqtt" },
+
+  // TR-369 MQTT MTP (BYO broker)
+  USP_MQTT_URL: { type: "string", default: "" },
+  USP_MQTT_USERNAME: { type: "string", default: "" },
+  USP_MQTT_PASSWORD: { type: "string", default: "" },
+  USP_MQTT_CLIENT_ID: { type: "string", default: "genieacs-usp" },
+  USP_MQTT_TOPIC_PREFIX: { type: "string", default: "genieacs/usp/v1" },
+  USP_MQTT_CONTROLLER_TOPIC: { type: "string", default: "" },
+  USP_MQTT_TLS_CA: { type: "path", default: "" },
+  USP_MQTT_TLS_CERT: { type: "path", default: "" },
+  USP_MQTT_TLS_KEY: { type: "path", default: "" },
+  USP_MQTT_WORKER_PROCESSES: { type: "int", default: 1 },
+
+  // TR-369 WebSocket MTP (server)
+  USP_WS_PORT: { type: "int", default: 0 },
+  USP_WS_INTERFACE: { type: "string", default: "::" },
+  USP_WS_PATH: { type: "string", default: "/usp" },
+  USP_WS_SUBPROTOCOL: { type: "string", default: "v1.usp" },
+  USP_WS_SSL_CERT: { type: "string", default: "" },
+  USP_WS_SSL_KEY: { type: "string", default: "" },
+  USP_WS_WORKER_PROCESSES: { type: "int", default: 0 },
+
+  // TR-369 STOMP MTP (client to external broker)
+  USP_STOMP_URL: { type: "string", default: "" },
+  USP_STOMP_USERNAME: { type: "string", default: "" },
+  USP_STOMP_PASSWORD: { type: "string", default: "" },
+  USP_STOMP_DEST_PREFIX: { type: "string", default: "/queue/genieacs-usp" },
+  USP_STOMP_WORKER_PROCESSES: { type: "int", default: 1 },
 };
 
 const allConfig: { [name: string]: string | number } = {};

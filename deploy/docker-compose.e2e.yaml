@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------------------
+# E2E overlay -- run together with docker-compose.dev.yaml.
+#
+#   docker compose \
+#     -f deploy/docker-compose.dev.yaml \
+#     -f deploy/docker-compose.e2e.yaml \
+#     --profile usp --profile e2e up
+#
+# This file deliberately stays minimal: it just spins up upstream OB-USP-A
+# agents under different MTPs so the test harness can drive end-to-end
+# Get/Set/Notify flows. Fixture content (factory-reset DM dumps, certificate
+# material, vendor params, etc.) lands in PR2 (MQTT), PR3 (WebSocket), and
+# PR4 (STOMP) and will be adapted from `oktopus/agent/`.
+# ---------------------------------------------------------------------------
+
+name: genieacs-dev
+
+services:
+  obuspa-mqtt:
+    image: oktopusp/obuspa:latest
+    profiles: ["e2e"]
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - genieacs-usp-mqtt
+    volumes:
+      - ./obuspa/factory-reset-mqtt.txt:/factory-reset.txt:ro
+    command: ["obuspa", "-v4", "-r", "/factory-reset.txt"]
+
+  obuspa-ws:
+    image: oktopusp/obuspa:latest
+    profiles: ["e2e"]
+    restart: unless-stopped
+    depends_on:
+      - genieacs-usp-ws
+    volumes:
+      - ./obuspa/factory-reset-ws.txt:/factory-reset.txt:ro
+    command: ["obuspa", "-v4", "-r", "/factory-reset.txt"]
+
+  obuspa-stomp:
+    image: oktopusp/obuspa:latest
+    profiles: ["e2e"]
+    restart: unless-stopped
+    depends_on:
+      - activemq
+      - genieacs-usp-stomp
+    volumes:
+      - ./obuspa/factory-reset-stomp.txt:/factory-reset.txt:ro
+    command: ["obuspa", "-v4", "-r", "/factory-reset.txt"]
